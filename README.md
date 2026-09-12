@@ -1,10 +1,6 @@
 # NavOS - LAN Local File Transfer
 
-Smart, lightweight file transfer between devices over your local network.
-
-NavOS is a self-hosted file transfer and device-sharing application designed to make moving files between your PC, phone, tablet, and other devices on the same network simple.
-
-No cloud storage is required. No account is required. Your files stay on your own network.
+Smart, lightweight file transfer between devices over your local network. NavOS is a self-hosted file transfer and device-sharing application designed to make moving files between your PC, phone, tablet, and other devices on the same network simple. No cloud storage is required. No account is required. Your files stay on your own network.
 
 ---
 
@@ -14,9 +10,7 @@ If you are using Windows, starting NavOS is simple.
 
 ## 1. Download NavOS
 
-Download or clone this repository to your computer.
-
-For example:
+Clone this repository to your computer.
 
     git clone https://github.com/Xx7Navin7xX/NavOS-LAN_Local_File_Transfer.git
 
@@ -58,257 +52,10 @@ If the project includes the Windows launcher, you can also start it using:
 
 ## 4. Open NavOS
 
-After starting the server, the console will display the address that can be opened in a browser.
-
-It will look similar to:
-
-    http://192.168.1.100:8000
-
-Open that address on the computer running NavOS.
+After starting the server, the console will display the address that can be opened in a browser. To connect your phone, make sure your phone and computer are connected to the same local network. If QR sharing is available on the dashboard, Scan it using your phone camera. NavOS opens in your phone browser. No manual IP address entry is required. you can also use this methon to open NavOS in other systems also.
 
 ---
 
-## 5. Connect from your phone
-
-Make sure your phone and computer are connected to the same local network.
-
-For example:
-
-    Computer
-       |
-       | Wi-Fi / Ethernet
-       |
-    Router
-       |
-       | Wi-Fi
-       |
-     Phone
-
-Then open the NavOS address shown by the server on your phone.
-
-Example:
-
-    http://192.168.1.100:8000
-
-Your phone should now be able to access the NavOS interface.
-
----
-
-# Easiest Way to Connect Your Phone
-
-If QR sharing is available on the dashboard:
-
-1. Start NavOS.
-2. Open the QR code.
-3. Scan it using your phone camera.
-4. Tap the detected link.
-5. NavOS opens in your phone browser.
-
-No manual IP address entry is required.
-
----
-
-# Using NavOS for the First Time
-
-After opening the dashboard, you will normally see the shared files and available controls.
-
-## Upload a file
-
-1. Open the upload area.
-2. Select one or more files.
-3. Wait for the upload to finish.
-4. The files will appear in the shared directory.
-
-You can also drag files into the browser where supported.
-
----
-
-## Upload a folder
-
-1. Choose the folder upload option.
-2. Select the folder.
-3. Wait for the upload to complete.
-4. NavOS preserves the folder structure.
-
----
-
-## Download a file
-
-Select a file and choose the download option.
-
-The browser will download the file normally.
-
----
-
-## Download a folder
-
-Select a folder and choose the folder download option.
-
-NavOS creates a ZIP archive containing the folder contents.
-
----
-
-## Download multiple files
-
-Select the files you want.
-
-Use the ZIP download option to download them together as a single archive.
-
----
-
-# Command-Line Options
-
-NavOS can be configured from the command line.
-
-The available command-line configuration includes options for:
-
-- Server address
-- Server port
-- PIN configuration
-- HTTPS/TLS mode
-- Custom certificates
-- Custom private keys
-- Other server startup settings
-
-For example:
-
-    python server.py --https
-
-Use:
-
-    python server.py --help
-
-to display the available command-line options for your version.
-
----
-
-# HTTPS with a Custom Certificate
-
-If you already have a certificate and private key, NavOS can be configured to use them.
-
-Example:
-
-    python server.py --https --cert path/to/certificate.pem --key path/to/private-key.pem
-
-Keep private keys protected and never commit them to GitHub.
-
----
-
-# File Sharing Directory
-
-NavOS serves files from its configured shared directory.
-
-Only files within the configured shared area should be considered part of the server's file-sharing environment.
-
-Do not place sensitive personal information, private keys, passwords, or other secrets inside the shared directory unless you intentionally want them accessible to connected users.
-
----
-
-# Security Model
-
-NavOS is primarily intended for trusted local networks.
-
-For example:
-
-- Home network
-- Personal computer network
-- Office LAN
-- Laboratory network
-- Workshop network
-- Local development environment
-
-It is not intended to replace a professionally hardened internet-facing file server.
-
-If you expose NavOS directly to the public internet, you are changing its threat model significantly.
-
-For internet-facing deployment, use an appropriate reverse proxy, firewall, authentication system, TLS configuration, and network access controls.
-
----
-
-# Important Security Notes
-
-## Do not expose NavOS directly to the internet without understanding the risks.
-
-NavOS is designed around local network sharing.
-
-If you only need to transfer files between devices at home, keep the server accessible only from your LAN.
-
-Use your firewall to control which devices can reach the server when necessary.
-
----
-
-## Keep your PIN private
-
-If PIN authentication is enabled, do not share your PIN with untrusted users.
-
-Anyone who can authenticate to the server may be able to access protected functionality.
-
----
-
-## Protect your configuration
-
-The server configuration can contain security-related settings.
-
-Protect the configuration file from unauthorized local access.
-
-If someone already has unrestricted access to the computer running NavOS, they should be considered trusted at the operating-system level.
-
----
-
-# ZIP Security
-
-ZIP generation is protected against path traversal and unsafe symbolic-link behavior.
-
-NavOS verifies paths before adding files to generated archives.
-
-Symbolic links are rejected instead of being followed into other locations.
-
-This prevents a malicious filesystem entry from causing files outside the shared directory to be unintentionally included in a downloadable ZIP archive.
-
----
-
-# Upload Security
-
-Uploaded paths are validated before files are written.
-
-NavOS prevents uploaded paths from escaping the configured shared directory.
-
-This protects against path traversal attempts such as trying to upload a file to a parent directory using paths like:
-
-    ../../somewhere/file.txt
-
----
-
-# Supported Workflow
-
-A typical NavOS workflow looks like this:
-
-    Start NavOS
-        |
-        v
-    Connect devices
-        |
-        +----------------------+
-        |                      |
-        v                      v
-      Upload                Download
-        |                      |
-        v                      v
-    Shared Files <--------> Other Device
-        |
-        +---- Preview
-        |
-        +---- Search
-        |
-        +---- Rename
-        |
-        +---- Delete
-        |
-        +---- ZIP Download
-
-Clipboard sharing, QR connection, LAN discovery, diagnostics, and activity monitoring are available alongside the main file-transfer workflow.
-
----
 
 ## What is NavOS?
 
@@ -357,115 +104,11 @@ Supported upload features include:
 - Resumable uploads
 - SHA-256 integrity verification
 
-### Large file uploads
-
-NavOS supports large file transfers and resumable uploads.
-
-Uploads can resume after an interruption instead of requiring the entire file to be transferred again.
-
-This is useful for:
-
-- Large videos
-- Disk images
-- Game files
-- Backups
-- Archives
-- Large project files
-
-The default maximum file size is 10 GB.
-
----
-
-## Folder Uploads
-
-Folders can be uploaded directly through the browser.
-
-NavOS preserves the folder structure during the upload.
-
-For example:
-
-    Project/
-    ├── README.md
-    ├── src/
-    │   ├── main.py
-    │   └── utils.py
-    └── assets/
-        └── logo.png
-
-can be uploaded as a complete folder.
-
----
-
-## Downloads
-
-Individual files can be downloaded directly.
-
-Folders can also be downloaded as ZIP archives.
-
-NavOS provides multiple ZIP download options, including:
-
-- Download an entire folder
-- Download all available files
-- Select specific files and download them together
-
-ZIP generation includes path-safety checks so files outside the shared directory are not unintentionally included.
-
-Symbolic links are not followed during ZIP generation.
-
----
-
-## File and Folder Management
-
-The web interface allows you to manage files stored in the shared directory.
-
-Available operations include:
-
-- Rename files
-- Rename folders
-- Delete files
-- Delete folders
-- Browse directories
-- Navigate through nested folders
-- Search for files
-- View file information
-
----
-
-# File Search
-
-NavOS includes a built-in search system for finding files in the shared directory.
-
-Search can be used to quickly locate files without manually browsing through every folder.
-
-This is especially useful when the shared directory contains a large number of files.
-
----
-
-# File Preview
-
-Supported files can be opened directly in the browser without downloading them first.
-
-Depending on the file type, NavOS can provide previews for:
-
-- Images
-- Audio
-- Video
-- PDF documents
-- Text files
-
-Text previews are protected by a size limit to avoid loading unnecessarily large text files directly into the browser.
-
----
-
 # Media Streaming
 
-Supported audio and video files can be streamed directly from NavOS.
+Supported audio and video files can be streamed directly from NavOS. 
 
-HTTP Range requests are supported so compatible media players and browsers can request portions of a file instead of downloading the entire file at once.
-
-This makes browser-based playback more practical for large media files.
-
----
+HTTP Range requests are supported so compatible media players and browsers can request portions of a file instead of downloading the entire file at once. This makes browser-based playback more practical for large media files.
 
 # Clipboard Sharing
 
@@ -496,24 +139,6 @@ For example, you can copy a command on your PC and quickly access it from your p
 
 ---
 
-# QR Code Sharing
-
-NavOS can generate a QR code for the local sharing address.
-
-This makes connecting a phone or tablet much easier.
-
-Instead of manually typing an IP address and port:
-
-1. Start NavOS on your computer.
-2. Open the displayed QR code.
-3. Scan it with your phone.
-4. Open the displayed address.
-5. Start transferring files.
-
-QR generation is performed locally and does not require an external QR-generation service.
-
----
-
 # LAN Server Discovery
 
 NavOS can automatically discover compatible NavOS servers on the local network.
@@ -533,42 +158,23 @@ Discovery uses the local network and does not require a cloud service.
 
 ---
 
-# Network Diagnostics
+# HTTPS with a Custom Certificate
 
-NavOS includes network information and diagnostics to help troubleshoot connectivity.
+If you already have a certificate and private key, NavOS can be configured to use them.
 
-The interface can provide information about detected network interfaces and the addresses that can be used to connect to the server.
+Example:
 
-This is useful when a computer has multiple network interfaces, such as:
+    python server.py --https --cert path/to/certificate.pem --key path/to/private-key.pem
 
-- Wi-Fi
-- Ethernet
-- Virtual adapters
-- VPN adapters
-
-If another device cannot connect, the network diagnostics section can help identify which address should be used.
+Keep private keys protected and never commit them to GitHub.
 
 ---
 
-# Live Activity
+# Important Security Notes
 
-NavOS provides a live activity view for monitoring server operations.
+## Do not expose NavOS directly to the internet without understanding the risks.
 
-Depending on the operation, activity information can include events such as:
-
-- File uploads
-- File downloads
-- File deletion
-- File changes
-- Connections
-- Authentication events
-- Server operations
-
-This makes it easier to understand what the server is doing while multiple devices are connected.
-
----
-
-# Security
+NavOS is designed around local network sharing. If you only need to transfer files between devices at home, keep the server accessible only from your LAN. Use your firewall to control which devices can reach the server when necessary.
 
 NavOS is designed primarily for use on trusted local networks.
 
@@ -586,48 +192,6 @@ Security features include:
 - Upload path validation
 - Resumable-upload validation
 - Security configuration protection
-
----
-
-## PIN Protection
-
-You can protect the NavOS interface with a PIN.
-
-When authentication is enabled, users must authenticate before accessing protected functionality.
-
-The server also protects the security configuration itself.
-
-When security is already enabled, changing the security settings requires the current PIN.
-
-When security is disabled, security configuration can only be bootstrapped from the local machine.
-
-A remote device on the LAN cannot simply connect and assign itself a new PIN.
-
----
-
-# HTTPS / TLS
-
-NavOS supports HTTPS/TLS encrypted connections.
-
-HTTPS can be enabled when starting the server.
-
-When HTTPS is enabled, NavOS can generate and use a local TLS certificate for the server.
-
-This allows traffic between the browser and NavOS to be encrypted.
-
-HTTPS is particularly useful when you want encrypted traffic even on a trusted local network.
-
-### Important
-
-HTTPS is not enabled by default.
-
-Start NavOS with the `--https` option when encrypted HTTPS/TLS mode is desired.
-
-Example:
-
-    python server.py --https
-
-NavOS can also accept custom certificate and key configuration when required.
 
 ---
 
@@ -654,49 +218,7 @@ Your files remain on the computer running NavOS unless you explicitly transfer t
 
 ---
 
-# Automatic Cleanup
-
-NavOS includes automatic cleanup functionality for temporary and expired data.
-
-This helps prevent temporary upload data and expired clipboard information from accumulating indefinitely.
-
----
-
-# Web Interface
-
-The web interface is designed to work across different device sizes.
-
-You can use NavOS from:
-
-- Desktop computers
-- Laptops
-- Android phones
-- Tablets
-- Other modern web browsers
-
-The interface includes responsive layouts and touch-friendly controls.
-
-Dark and light interface modes are supported.
-
-Keyboard interaction is also supported for common operations.
-
----
-
 # Common Problems
-
-## My phone cannot connect
-
-Check the following:
-
-1. Make sure the phone and computer are on the same network.
-2. Check the IP address displayed by NavOS.
-3. Make sure you are using the correct port.
-4. Check Windows Firewall.
-5. Make sure NavOS is still running.
-6. Try the QR code if available.
-7. Check the Network Diagnostics section.
-
----
 
 ## NavOS works on the PC but not on my phone
 
@@ -749,91 +271,6 @@ No cloud account is required for normal operation.
 
 ---
 
-# Project Structure
-
-A typical NavOS installation contains the application server, web interface, browser-side resources, and optional Windows startup files.
-
-Example:
-
-    NavOS-LAN_Local_File_Transfer/
-    ├── server.py
-    ├── index.html
-    ├── qrcode.min.js
-    ├── Start_windows.bat
-    └── README.md
-
-Additional files may be included depending on the release.
-
----
-
-# Performance
-
-NavOS is designed to remain lightweight while supporting practical local-network transfers.
-
-Features such as:
-
-- Concurrent uploads
-- Resumable transfers
-- Streaming
-- Range requests
-- Temporary upload handling
-- ZIP resource limits
-- Cleanup tasks
-
-help keep the server practical for everyday use.
-
-Actual transfer speed depends on:
-
-- Wi-Fi speed
-- Ethernet speed
-- Router performance
-- Device hardware
-- Storage speed
-- Browser behavior
-- Network congestion
-
-For large transfers, wired Ethernet or a fast Wi-Fi connection will generally provide better performance.
-
----
-
-# Why NavOS?
-
-Moving a file between your own devices should not require:
-
-- Uploading it to a cloud service
-- Creating another account
-- Sending yourself an email
-- Connecting a USB cable
-- Installing a complicated synchronization system
-
-NavOS provides a simple alternative:
-
-    Your computer
-          |
-          | Local network
-          v
-       NavOS
-       /    \
-      /      \
-   Phone    Tablet
-      \      /
-       \    /
-     Other PC
-
-Start the server, connect your devices, and transfer what you need.
-
----
-
-# Privacy Philosophy
-
-NavOS is built around a simple idea:
-
-> Your files should not need to leave your network just because you want to move them between your own devices.
-
-The application is self-hosted and intended for direct local-network communication.
-
----
-
 # Support the Project
 
 If NavOS is useful to you and you would like to support its development, you can use the support options provided in the application.
@@ -850,41 +287,6 @@ Support is completely optional, but it helps with continued development, testing
 
 ---
 
-# Contributing
-
-Contributions, bug reports, suggestions, and improvements are welcome.
-
-Before submitting a pull request:
-
-1. Explain what the change does.
-2. Keep changes focused.
-3. Test the affected functionality.
-4. Avoid introducing unrelated changes.
-5. Do not include passwords, private keys, personal configuration, or other secrets.
-
----
-
-# Reporting Security Issues
-
-If you discover a security vulnerability, please do not publicly disclose sensitive exploit details before the issue can be investigated.
-
-Provide enough information to reproduce the problem safely, including:
-
-- Affected feature
-- Steps to reproduce
-- Expected behavior
-- Actual behavior
-- Relevant logs
-- Suggested fix, if available
-
----
-
-# License
-
-See the `LICENSE` file in this repository for the applicable license.
-
----
-
 # Disclaimer
 
 NavOS is provided as a self-hosted local-network application.
@@ -892,26 +294,6 @@ NavOS is provided as a self-hosted local-network application.
 You are responsible for configuring your network, firewall, authentication, TLS certificates, shared files, and access permissions appropriately.
 
 Do not expose the application to untrusted networks unless you understand and have appropriately addressed the additional security requirements.
-
----
-
-# Quick Start
-
-If you just want the shortest possible setup:
-
-### Windows
-
-    1. Install Python 3.
-    2. Download NavOS.
-    3. Open the NavOS folder.
-    4. Run Start_windows.bat
-       or:
-       python server.py
-    5. Open the displayed address.
-    6. Scan the QR code from your phone, or enter the displayed LAN address.
-    7. Start transferring files.
-
-That's it.
 
 ---
 
