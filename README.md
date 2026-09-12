@@ -2,6 +2,8 @@
 
 Smart, lightweight file transfer between devices over your local network. NavOS is a self-hosted file transfer and device-sharing application designed to make moving files between your PC, phone, tablet, and other devices on the same network simple. No cloud storage is required. No account is required. Your files stay on your own network.
 
+<img width="335" height="335" alt="Picture1" src="https://github.com/user-attachments/assets/c4f820d3-bdae-45f3-ac2d-6054b3fc98cd" /><img width="335" height="335" alt="Picture1_rev" src="https://github.com/user-attachments/assets/ea80239e-1986-4093-ae8c-338fe4f53bd0" /><img width="335" height="335" alt="Picture1" src="https://github.com/user-attachments/assets/c4f820d3-bdae-45f3-ac2d-6054b3fc98cd" />
+
 ---
 
 # Windows Quick Start
@@ -53,6 +55,8 @@ If the project includes the Windows launcher, you can also start it using:
 ## 4. Open NavOS
 
 After starting the server, the console will display the address that can be opened in a browser. To connect your phone, make sure your phone and computer are connected to the same local network. If QR sharing is available on the dashboard, Scan it using your phone camera. NavOS opens in your phone browser. No manual IP address entry is required. you can also use this methon to open NavOS in other systems also.
+
+<img width="1263" height="162" alt="image" src="https://github.com/user-attachments/assets/8cfc8de7-1aa3-4e97-a1e3-3bafed3fab5d" />
 
 ---
 
@@ -155,6 +159,8 @@ The discovery system can provide information such as:
 - Server availability
 
 Discovery uses the local network and does not require a cloud service.
+
+<img width="1737" height="927" alt="image" src="https://github.com/user-attachments/assets/35b73460-233e-4229-909b-461c90dfbcf8" />
 
 ---
 
