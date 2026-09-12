@@ -2,7 +2,7 @@
 
 Smart, lightweight file transfer between devices over your local network. NavOS is a self-hosted file transfer and device-sharing application designed to make moving files between your PC, phone, tablet, and other devices on the same network simple. No cloud storage is required. No account is required. Your files stay on your own network.
 
-<img width="335" height="335" alt="Picture1" src="https://github.com/user-attachments/assets/c4f820d3-bdae-45f3-ac2d-6054b3fc98cd" /><img width="335" height="335" alt="Picture1_rev" src="https://github.com/user-attachments/assets/ea80239e-1986-4093-ae8c-338fe4f53bd0" /><img width="335" height="335" alt="Picture1" src="https://github.com/user-attachments/assets/c4f820d3-bdae-45f3-ac2d-6054b3fc98cd" />
+<img width="335" height="335" alt="Picture1" src="https://github.com/user-attachments/assets/c4f820d3-bdae-45f3-ac2d-6054b3fc98cd" /><img width="335" height="335" alt="Picture1_rev" src="https://github.com/user-attachments/assets/ea80239e-1986-4093-ae8c-338fe4f53bd0" />
 
 ---
 
