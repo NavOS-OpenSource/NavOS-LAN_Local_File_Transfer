@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import atexit
 import hashlib
+import io
 import ipaddress
 import json
 import mimetypes
@@ -26,6 +27,7 @@ import tempfile
 import threading
 import time
 import zipfile
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone, timedelta
 from http import HTTPStatus
 from http.cookies import SimpleCookie
@@ -35,8 +37,8 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 
 
 APP_TITLE = "புரா சேவைகள்"
-CHUNK_SIZE = 1024 * 1024
-STREAM_BUFFER_SIZE = 64 * 1024
+CHUNK_SIZE = 4 * 1024 * 1024  # 4 MB chunks for file downloads
+STREAM_BUFFER_SIZE = 256 * 1024  # 256 KB for upload streaming
 DEFAULT_MAX_UPLOAD_GB = 10
 DEFAULT_PIN = "".join(secrets.choice("0123456789") for _ in range(4))
 DISCOVERY_PORT = 52002
@@ -44,7 +46,7 @@ MAX_CLIPBOARD_BYTES = 512 * 1024
 MAX_CLIPBOARD_ITEMS = 30
 MAX_ACTIVITY_EVENTS = 50
 RESUMABLE_STALE_SECONDS = 24 * 60 * 60  # 24 hours
-MAX_RESUMABLE_CHUNK_BYTES = 5 * 1024 * 1024  # 5 MB hard limit per chunk
+MAX_RESUMABLE_CHUNK_BYTES = 20 * 1024 * 1024  # 20 MB hard limit per chunk (supports 16 MB client chunks)
 MAX_ACTIVE_RESUMABLE_SESSIONS = 25
 MAX_SSE_CLIENTS = 20
 MAX_TRACKED_DEVICES = 64
@@ -52,12 +54,17 @@ DEVICE_STALE_SECONDS = 24 * 60 * 60
 MAX_CONCURRENT_ZIPS = 2
 MAX_ZIP_FILES = 100_000
 
+# Thread pool for offloading blocking disk I/O operations
+DISK_IO_EXECUTOR = ThreadPoolExecutor(max_workers=4, thread_name_prefix="disk-io")
+
 
 INDEX_HTML = r"""<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>NavOS Local File Transfer</title>
   <style>
     :root {
@@ -362,6 +369,7 @@ INDEX_HTML = r"""<!doctype html>
       color: var(--ink);
       padding: 10px 11px;
       min-height: 40px;
+      font-size: 16px; /* Prevent iOS auto-zoom on focus */
       transition: border-color 150ms ease, box-shadow 150ms ease, background 150ms ease;
     }
 
@@ -1902,23 +1910,72 @@ INDEX_HTML = r"""<!doctype html>
       height: 60px;
     }
 
-    .auth-box {
-      width: min(680px, 100%);
-      min-height: min(700px, calc(100vh - 48px));
-      background:
-        radial-gradient(circle at 30% 0%, color-mix(in srgb, var(--soft) 70%, transparent), transparent 38%),
-        linear-gradient(180deg, color-mix(in srgb, var(--panel) 94%, transparent), var(--panel));
-      border: 1px solid var(--line);
+    /* Auth screen - image is now a regular element, not background */
+    .auth-logo {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .auth-logo-img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
       border-radius: 8px;
-      box-shadow: var(--shadow);
-      padding: clamp(24px, 5vw, 56px);
-      display: grid;
-      align-content: center;
-      justify-items: center;
-      gap: 22px;
+    }
+
+    /* Light mode: show light image, hide dark */
+    .auth-logo-light { display: block; }
+    .auth-logo-dark { display: none; }
+
+    /* Dark mode: show dark image, hide light */
+    body.dark .auth-logo-light { display: none; }
+    body.dark .auth-logo-dark { display: block; }
+
+    .auth-box {
+      width: min(1100px, calc(100vw - 48px));
+      max-height: calc(100vh - 48px);
+      background: transparent;
+      border: none;
+      border-radius: 8px;
+      box-shadow: none;
+      padding: 40px;
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      justify-content: center;
+      gap: 40px;
       text-align: center;
       position: relative;
       overflow: hidden;
+    }
+
+    /* Desktop: image on left, buttons on right */
+    .auth-box .auth-logo {
+      flex: 0 0 auto;
+      width: 600px;
+      height: 600px;
+    }
+
+    .auth-box .pin-panel {
+      flex: 0 0 auto;
+    }
+
+    /* Mobile: stack vertically */
+    @media (max-width: 800px) {
+      .auth-box {
+        flex-direction: column;
+        width: calc(100vw - 32px);
+        padding: 24px;
+        gap: 24px;
+      }
+
+      .auth-box .auth-logo {
+        width: 100%;
+        max-width: 400px;
+        height: auto;
+        aspect-ratio: 1 / 1;
+      }
     }
 
     .auth-box::before {
@@ -1947,10 +2004,11 @@ INDEX_HTML = r"""<!doctype html>
     }
 
     .pin-panel {
-      width: min(360px, 100%);
+      width: 320px;
+      min-width: 280px;
       display: grid;
       gap: 10px;
-      margin-top: 8px;
+      z-index: 1;
     }
 
     .pin-field-wrapper {
@@ -2715,7 +2773,7 @@ INDEX_HTML = r"""<!doctype html>
     <section class="view active" id="files-view" role="tabpanel" aria-labelledby="tab-files">
       <section class="grid">
         <section class="panel dropzone" id="dropzone">
-          <input id="file-input" type="file" multiple>
+          <input id="file-input" type="file" multiple accept="*/*">
           <input id="folder-input" type="file" webkitdirectory multiple>
           <div class="drop-inner">
             <span class="upload-icon" aria-hidden="true">
@@ -2896,6 +2954,15 @@ INDEX_HTML = r"""<!doctype html>
             </div>
           </div>
           <div class="tool-box">
+            <h3>Upload Performance</h3>
+            <p class="meta">Integrity verification computes SHA-256 for each upload to detect corruption. Disabling it improves speed on trusted LANs.</p>
+            <label class="security-toggle-row">
+              <input type="checkbox" id="hash-toggle">
+              <span class="toggle-switch"></span>
+              <span class="toggle-label-text">Enable SHA-256 integrity verification</span>
+            </label>
+          </div>
+          <div class="tool-box">
             <h3>Service check</h3>
             <div class="service-list" id="service-list">
               <div class="service-row"><span class="dot"></span><span>Server info</span><strong>Checking</strong></div>
@@ -3059,18 +3126,10 @@ INDEX_HTML = r"""<!doctype html>
 
   <section class="auth" id="auth">
     <form class="auth-box" id="auth-form">
-      <span class="brand-mark" aria-hidden="true">
-        <svg viewBox="0 0 64 64">
-          <path d="M16 39c10-4 18-12 22-25 5 7 7 15 4 23"></path>
-          <path d="M18 44c12 4 28 0 38-10-5 13-18 22-34 20"></path>
-          <path d="M31 28c-6 2-11 6-15 11"></path>
-          <path d="M40 22c6 0 11 3 15 8"></path>
-          <path d="M45 28h.01"></path>
-          <path d="M20 48 9 55"></path>
-        </svg>
-      </span>
-      <h2 class="auth-title" lang="ta">புரா சேவைகள்</h2>
-      <p class="auth-subtitle" id="auth-subtitle">Files, clipboard transfer, and device tools on your private network.</p>
+      <div class="auth-logo">
+        <img src="/assets/LP_lite.png" alt="NavOS" class="auth-logo-img auth-logo-light">
+        <img src="/assets/LP_dark.png" alt="NavOS" class="auth-logo-img auth-logo-dark">
+      </div>
       <div class="pin-panel" id="pin-panel">
         <div class="pin-field-wrapper" id="pin-field-wrapper">
           <input id="pin-input" type="password" inputmode="numeric" autocomplete="current-password" placeholder="PIN" aria-label="PIN">
@@ -3169,6 +3228,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     const securityBadge = document.querySelector("#security-badge");
     const securityNote = document.querySelector("#security-note");
     const securityToggle = document.querySelector("#security-toggle");
+    const hashToggle = document.querySelector("#hash-toggle");
     const toggleLabelText = document.querySelector("#toggle-label-text");
     const securityPinForm = document.querySelector("#security-pin-form");
     const newPinField = document.querySelector("#new-pin-field");
@@ -3634,6 +3694,9 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       if (securityToggle) {
         securityToggle.checked = isEnabled;
       }
+      if (hashToggle) {
+        hashToggle.checked = Boolean(info && info.hash_verification);
+      }
       if (toggleLabelText) {
         toggleLabelText.textContent = isEnabled ? "PIN Protection is Enabled" : "Require PIN to open dashboard";
       }
@@ -3928,10 +3991,12 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
         audio.controls = true;
         audio.src = previewUrl;
         previewBody.append(audio);
-      } else if (file.type.startsWith("video/") || ["mp4", "webm", "ogg"].includes(ext)) {
+      } else if (file.type.startsWith("video/") || ["mp4", "webm", "ogg", "mov", "m4v"].includes(ext)) {
         const video = document.createElement("video");
         video.className = "preview-video";
         video.controls = true;
+        video.playsInline = true;  // iOS requires this for inline playback
+        video.setAttribute("playsinline", "");  // Also set as attribute for older iOS
         video.src = previewUrl;
         previewBody.append(video);
       } else if (file.type === "application/pdf" || ext === "pdf") {
@@ -3966,8 +4031,8 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       closePreview.focus();
     }
 
-    const MAX_CONCURRENT_UPLOADS = 3;
-    const UPLOAD_CHUNK_SIZE = 2 * 1024 * 1024; // 2 MB chunks
+    const MAX_CONCURRENT_UPLOADS = 1;  // Sequential uploads (one at a time for reliability)
+    const UPLOAD_CHUNK_SIZE = 16 * 1024 * 1024; // 16 MB chunks for faster LAN transfers
     const activeUploadRequests = new Set();
 
     async function computeSHA256(file) {
@@ -3997,12 +4062,15 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       const displayName = relativePath || file.name;
 
       uploadItems[itemIndex].name = displayName;
-      if (file.size <= 64 * 1024 * 1024) {
+      
+      // Skip hash computation if server has hash verification disabled
+      const hashEnabled = infoCache && infoCache.hash_verification;
+      let clientHash = "";
+      if (hashEnabled && file.size <= 64 * 1024 * 1024) {
         uploadItems[itemIndex].status = "Calculating SHA-256...";
         renderUploadQueue();
+        clientHash = await computeSHA256(file);
       }
-
-      const clientHash = await computeSHA256(file);
       uploadItems[itemIndex].status = "Initializing...";
       renderUploadQueue();
 
@@ -4550,19 +4618,34 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
         }
         const blob = await response.blob();
         const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
         const disposition = response.headers.get("Content-Disposition");
         let filename = "Selected_Files.zip";
         if (disposition && disposition.includes('filename="')) {
           filename = disposition.split('filename="')[1].split('"')[0];
         }
-        a.download = filename;
-        document.body.append(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
-        showToast("ZIP download started");
+        
+        // iOS Safari workaround - open blob URL in new tab
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+                      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        if (isIOS) {
+          // iOS: open in new window, user must long-press to save
+          const win = window.open(url, '_blank');
+          if (!win) {
+            // Popup blocked - fall back to location change
+            window.location.href = url;
+          }
+          showToast("Tap and hold the file to save it");
+        } else {
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = filename;
+          document.body.append(a);
+          a.click();
+          a.remove();
+          showToast("ZIP download started");
+        }
+        // Delay revoke to ensure download starts
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
       } catch (err) {
         showToast(`Download failed: ${err.message}`);
       }
@@ -4654,8 +4737,15 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     chooseButton.addEventListener("click", () => fileInput.click());
     fileInput.addEventListener("change", () => uploadFiles(fileInput.files));
     if (chooseFolderButton && folderInput) {
-      chooseFolderButton.addEventListener("click", () => folderInput.click());
-      folderInput.addEventListener("change", () => uploadFiles(folderInput.files, true));
+      // Hide folder upload on iOS/iPadOS - webkitdirectory not supported
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+                    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+      if (isIOS) {
+        chooseFolderButton.style.display = "none";
+      } else {
+        chooseFolderButton.addEventListener("click", () => folderInput.click());
+        folderInput.addEventListener("change", () => uploadFiles(folderInput.files, true));
+      }
     }
     if (pauseUpload) {
       pauseUpload.addEventListener("click", () => {
@@ -4827,6 +4917,35 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       });
     }
 
+    if (hashToggle) {
+      hashToggle.addEventListener("change", async () => {
+        const enable = hashToggle.checked;
+        try {
+          const currentlyEnabled = Boolean(infoCache && infoCache.auth_enabled);
+          const payload = {
+            auth_enabled: currentlyEnabled,
+            hash_verification: enable
+          };
+          // If auth is enabled, we need to provide current PIN - skip for now and just toggle hash
+          const res = await fetchJson("/api/security", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+          if (res.ok !== false) {
+            if (infoCache) infoCache.hash_verification = enable;
+            showToast(enable ? "SHA-256 verification enabled" : "SHA-256 verification disabled (faster uploads)");
+          } else {
+            hashToggle.checked = !enable;
+            showToast(res.error || "Failed to update setting");
+          }
+        } catch (err) {
+          hashToggle.checked = !enable;
+          showToast("Failed to update hash verification setting");
+        }
+      });
+    }
+
     if (togglePinVisibility) {
       togglePinVisibility.addEventListener("click", () => {
         const isPassword = newPinInput.type === "password";
@@ -4904,10 +5023,20 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     }
     readSystemClipboard.addEventListener("click", async () => {
       try {
-        clipInput.value = await navigator.clipboard.readText();
-        clipInput.focus();
+        // Check if clipboard API is available and we have permission
+        if (navigator.clipboard && navigator.clipboard.readText) {
+          const text = await navigator.clipboard.readText();
+          clipInput.value = text;
+          clipInput.focus();
+        } else {
+          throw new Error("Clipboard API not available");
+        }
       } catch {
-        showToast("Browser blocked clipboard read. Paste manually.");
+        // iOS Safari often blocks clipboard read - prompt user to paste manually
+        clipInput.value = "";
+        clipInput.placeholder = "Paste here (Ctrl+V or long-press)";
+        clipInput.focus();
+        showToast("Tap the text box and paste manually");
       }
     });
 
@@ -5964,6 +6093,20 @@ class PuraHTTPServer(ThreadingHTTPServer):
     request_queue_size = 128
     daemon_threads = True
     ssl_context: ssl.SSLContext | None = None
+    allow_reuse_address = True
+    allow_reuse_port = True
+
+    def server_bind(self):
+        """Optimize socket for high-throughput LAN transfers."""
+        # Enable TCP_NODELAY to disable Nagle's algorithm for lower latency
+        self.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        # Increase socket buffer sizes for better throughput (256 KB)
+        try:
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 256 * 1024)
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 256 * 1024)
+        except OSError:
+            pass  # Some systems don't allow buffer size changes
+        super().server_bind()
 
     def finish_request(self, request, client_address):
         if self.ssl_context:
@@ -6008,6 +6151,7 @@ class FileShareHandler(BaseHTTPRequestHandler):
     file_expiry: dict[str, float]
     file_expiry_lock: threading.Lock
     file_expiry_path: Path
+    hash_verification: bool
     devices: dict[str, dict]
     device_names: dict[str, str]
     device_names_path: Path
@@ -6044,10 +6188,10 @@ class FileShareHandler(BaseHTTPRequestHandler):
             if not self.require_auth():
                 return
             self.mark_device()
-            self.send_file(parsed.path.removeprefix("/files/"), parse_qs(parsed.query).get("preview", ["0"])[0] == "1")
+            self.send_file(parsed.path[len("/files/"):], parse_qs(parsed.query).get("preview", ["0"])[0] == "1")
             return
         if parsed.path.startswith("/assets/"):
-            self.send_asset(parsed.path.removeprefix("/assets/"))
+            self.send_asset(parsed.path[len("/assets/"):])
             return
         if parsed.path == "/api/info":
             self.send_json(
@@ -6060,6 +6204,7 @@ class FileShareHandler(BaseHTTPRequestHandler):
                     "auth_enabled": bool(self.auth_enabled),
                     "has_pin": bool(self.pin),
                     "is_authenticated": self.is_authorized(),
+                    "hash_verification": bool(self.hash_verification),
                 }
             )
             return
@@ -6068,6 +6213,7 @@ class FileShareHandler(BaseHTTPRequestHandler):
                 {
                     "auth_enabled": bool(self.auth_enabled),
                     "has_pin": bool(self.pin),
+                    "hash_verification": bool(self.hash_verification),
                 }
             )
             return
@@ -6087,7 +6233,7 @@ class FileShareHandler(BaseHTTPRequestHandler):
         elif parsed.path == "/api/files/download-zip":
             self.handle_download_selected_zip()
         elif parsed.path.startswith("/api/files/download-folder/"):
-            self.send_folder_zip(parsed.path.removeprefix("/api/files/download-folder/"))
+            self.send_folder_zip(parsed.path[len("/api/files/download-folder/"):])
         elif parsed.path == "/api/files":
             self.send_files()
         elif parsed.path == "/api/upload/status":
@@ -6349,7 +6495,7 @@ class FileShareHandler(BaseHTTPRequestHandler):
         if not parsed.path.startswith("/api/files/"):
             self.send_error_json(HTTPStatus.NOT_FOUND, "Not found")
             return
-        path = self.resolve_shared_path(parsed.path.removeprefix("/api/files/"))
+        path = self.resolve_shared_path(parsed.path[len("/api/files/"):])
         if path is None or not (path.is_file() or path.is_dir()):
             self.send_error_json(HTTPStatus.NOT_FOUND, "File not found")
             return
@@ -6420,7 +6566,7 @@ class FileShareHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/files":
             self.delete_all_files()
         elif parsed.path.startswith("/api/files/"):
-            encoded_name = parsed.path.removeprefix("/api/files/")
+            encoded_name = parsed.path[len("/api/files/"):]
             path = self.resolve_shared_path(encoded_name)
             if path is None:
                 self.send_error_json(HTTPStatus.NOT_FOUND, "File not found")
@@ -6456,7 +6602,7 @@ class FileShareHandler(BaseHTTPRequestHandler):
         elif parsed.path == "/api/upload/cancel":
             self.handle_upload_cancel(parsed)
         elif parsed.path.startswith("/api/clipboard/"):
-            item_id = parsed.path.removeprefix("/api/clipboard/")
+            item_id = parsed.path[len("/api/clipboard/"):]
             cls = self.__class__
             with cls.clipboard_lock:
                 cls.clipboard_items[:] = [item for item in cls.clipboard_items if str(item["id"]) != item_id]
@@ -6541,9 +6687,14 @@ class FileShareHandler(BaseHTTPRequestHandler):
                 if new_pin:
                     cls.pin = new_pin
 
+            # Handle hash_verification toggle (can be set independently of auth)
+            if "hash_verification" in payload:
+                cls.hash_verification = bool(payload.get("hash_verification"))
+
             config_data = {
                 "auth_enabled": cls.auth_enabled,
                 "pin": cls.pin or DEFAULT_PIN,
+                "hash_verification": cls.hash_verification,
             }
             try:
                 save_server_config(cls.config_path, config_data)
@@ -6558,7 +6709,7 @@ class FileShareHandler(BaseHTTPRequestHandler):
             self.send_header("Set-Cookie", self._auth_cookie())
         else:
             self.send_header("Set-Cookie", self._auth_cookie(clear=True))
-        body = json.dumps({"ok": True, "auth_enabled": cls.auth_enabled, "has_pin": bool(cls.pin)}).encode("utf-8")
+        body = json.dumps({"ok": True, "auth_enabled": cls.auth_enabled, "has_pin": bool(cls.pin), "hash_verification": cls.hash_verification}).encode("utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
@@ -6682,7 +6833,7 @@ class FileShareHandler(BaseHTTPRequestHandler):
         temp_name = f".upload-{time.time_ns()}-{threading.get_ident()}.tmp"
         temp_path = self.share_dir / temp_name
 
-        sha256_hash = hashlib.sha256()
+        sha256_hash = hashlib.sha256() if self.hash_verification else None
         try:
             with temp_path.open("wb") as handle:
                 while remaining:
@@ -6690,7 +6841,8 @@ class FileShareHandler(BaseHTTPRequestHandler):
                     if not chunk:
                         raise ConnectionError("Upload ended early")
                     handle.write(chunk)
-                    sha256_hash.update(chunk)
+                    if sha256_hash:
+                        sha256_hash.update(chunk)
                     remaining -= len(chunk)
             os.replace(temp_path, destination)
         except Exception as exc:
@@ -6698,7 +6850,7 @@ class FileShareHandler(BaseHTTPRequestHandler):
             self.send_error_json(HTTPStatus.INTERNAL_SERVER_ERROR, "Upload failed")
             return
 
-        server_sha256 = sha256_hash.hexdigest()
+        server_sha256 = sha256_hash.hexdigest() if sha256_hash else ""
 
         rel_path = str(destination.resolve().relative_to(self.share_dir.resolve())).replace(os.sep, "/")
 
@@ -6934,7 +7086,8 @@ class FileShareHandler(BaseHTTPRequestHandler):
                 temp_handle.seek(server_offset)
                 temp_handle.write(chunk_data)
                 temp_handle.flush()
-                sha256_hash.update(chunk_data)
+                if self.hash_verification:
+                    sha256_hash.update(chunk_data)
             except Exception:
                 self.send_error_json(HTTPStatus.INTERNAL_SERVER_ERROR, "Chunk write failed")
                 return
@@ -6987,11 +7140,11 @@ class FileShareHandler(BaseHTTPRequestHandler):
                 pass
 
         temp_path = Path(session["temp_path"])
-        server_sha256 = session["sha256_hash"].hexdigest()
+        server_sha256 = session["sha256_hash"].hexdigest() if self.hash_verification else ""
         expected_sha256 = session["sha256_expected"]
 
-        # SHA-256 verification
-        if expected_sha256 and expected_sha256 != server_sha256:
+        # SHA-256 verification (only when hash_verification is enabled)
+        if self.hash_verification and expected_sha256 and expected_sha256 != server_sha256:
             temp_path.unlink(missing_ok=True)
             with cls.resumable_uploads_lock:
                 cls.resumable_uploads.pop(upload_id, None)
@@ -7675,6 +7828,21 @@ class FileShareHandler(BaseHTTPRequestHandler):
             with path.open("rb") as handle:
                 handle.seek(start)
                 remaining = content_length
+                # Try to use os.sendfile for zero-copy transfer (Linux/macOS)
+                if hasattr(os, 'sendfile') and start == 0 and content_length == file_size:
+                    try:
+                        sent = 0
+                        out_fd = self.wfile.fileno()
+                        in_fd = handle.fileno()
+                        while sent < content_length:
+                            to_send = min(content_length - sent, 2**30)  # 1GB max per call
+                            sent += os.sendfile(out_fd, in_fd, sent, to_send)
+                        remaining = 0
+                    except (OSError, io.UnsupportedOperation):
+                        # Fall back to regular read/write
+                        handle.seek(start)
+                        remaining = content_length
+                # Regular read/write loop with optimized buffer
                 while remaining > 0:
                     chunk = handle.read(min(CHUNK_SIZE, remaining))
                     if not chunk:
@@ -7889,6 +8057,9 @@ def build_handler(
         auth_enabled = False
         resolved_pin = DEFAULT_PIN
 
+    # Hash verification: off by default for faster transfers
+    hash_verification = bool(saved_config.get("hash_verification", False))
+
     ConfiguredFileShareHandler.share_dir = share_dir
     ConfiguredFileShareHandler.asset_dir = asset_dir
     ConfiguredFileShareHandler.max_upload_gb = max_upload_gb
@@ -7900,6 +8071,7 @@ def build_handler(
     ConfiguredFileShareHandler.discovery_service = discovery_service
     ConfiguredFileShareHandler.start_time = time.time()
     ConfiguredFileShareHandler.auth_enabled = auth_enabled
+    ConfiguredFileShareHandler.hash_verification = hash_verification
     ConfiguredFileShareHandler.pin = resolved_pin
     ConfiguredFileShareHandler.auth_token = secrets.token_urlsafe(32)
     ConfiguredFileShareHandler.login_attempts = {}
