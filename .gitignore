@@ -14,6 +14,7 @@ env/
 # IDE metadata
 .vscode/
 .idea/
+.kiro/
 *.swp
 *~
 
