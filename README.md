@@ -84,6 +84,8 @@ Once NavOS is running, open the displayed network address on another device and 
 
 NavOS is designed primarily for trusted local networks such as your home, office, laboratory, workshop, or personal device network.
 
+<img width="1686" height="938" alt="image" src="https://github.com/user-attachments/assets/af7d789f-25e2-4f17-a4af-84bb625de2dd" />
+
 ---
 
 # Features
